@@ -3,7 +3,7 @@ import json
 import threading
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
-from flask import Flask, request
+from flask import Flask, request, jsonify
 from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse
 import logging
@@ -112,14 +112,19 @@ def incoming_call():
     
     # Gather guest input (Twilio Speech Recognition)
     gather = response.gather(
-        num_digits=1,
+        num_digits=0,
         action='/handle_guest_input',
         method='POST',
-        timeout=10,
+        timeout=15,
         speech_timeout='auto',
-        speech_model='numbers_and_commands'
+        max_speech_time=30,
+        language='en-US'
     )
-    gather.say("Press 1 for new booking, 2 to extend stay, 3 for cancellation, or 4 for questions.", voice='alice')
+    gather.say("Please tell me what you need.", voice='alice')
+    
+    # If no input, repeat
+    response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
+    response.redirect('/incoming_call')
     
     return str(response)
 
@@ -132,43 +137,99 @@ def handle_guest_input():
     user_input = request.form.get('SpeechResult', '').lower()
     logger.info(f"Guest input: {user_input}")
     
-    if "booking" in user_input or "book" in user_input or "reserve" in user_input:
-        response.say("Great! Let's create a new reservation. When would you like to check in?", voice='alice')
+    # Store session data
+    from_number = request.form.get('From', 'unknown')
+    call_sid = request.form.get('CallSid', 'unknown')
+    
+    if not user_input:
+        response.say("Sorry, I didn't catch that.", voice='alice')
+        response.redirect('/incoming_call')
+        return str(response)
+    
+    # BOOKING
+    if any(word in user_input for word in ["book", "booking", "reserve", "reservation", "room"]):
+        logger.info("🔵 NEW BOOKING STARTED")
+        response.say("Great! Let's create a new reservation.", voice='alice')
+        response.say("When would you like to check in? Please say a date like tomorrow or December 20th.", voice='alice')
+        
         gather = response.gather(
-            num_digits=1,
+            num_digits=0,
             action='/booking_checkin',
             method='POST',
-            timeout=10,
-            speech_timeout='auto'
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
         )
+        
         return str(response)
     
-    elif "extend" in user_input or "stay" in user_input:
+    # EXTEND STAY
+    elif any(word in user_input for word in ["extend", "longer", "more nights", "additional"]):
+        logger.info("🔵 EXTEND STAY STARTED")
         response.say("I can help you extend your stay. What's your name or room number?", voice='alice')
+        
         gather = response.gather(
+            num_digits=0,
             action='/extend_stay',
             method='POST',
-            timeout=10,
-            speech_timeout='auto'
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
         )
+        
         return str(response)
     
-    elif "cancel" in user_input:
+    # CANCELLATION
+    elif any(word in user_input for word in ["cancel", "cancellation", "delete", "remove"]):
+        logger.info("🔵 CANCELLATION STARTED")
         response.say("I'll help you cancel your reservation. What's your name?", voice='alice')
+        
         gather = response.gather(
+            num_digits=0,
             action='/cancel_booking',
             method='POST',
-            timeout=10,
-            speech_timeout='auto'
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
         )
+        
         return str(response)
     
+    # QUESTIONS / FAQ
     else:
-        # FAQ or transfer
-        response.say("Let me answer your question. For more details, I'll transfer you to our team.", voice='alice')
-        response.dial(Config.MOTEL_PHONE)
-    
-    return str(response)
+        logger.info(f"❓ FAQ REQUEST: {user_input}")
+        
+        # Answer based on keywords
+        if "wifi" in user_input:
+            response.say("We offer free high-speed WiFi. The password is Seahorse Guest 2024.", voice='alice')
+        elif "check-in" in user_input or "checkin" in user_input:
+            response.say("Check-in is at 3 PM. We have 24/7 kiosk check-in available.", voice='alice')
+        elif "check-out" in user_input or "checkout" in user_input:
+            response.say("Check-out is at 11 AM.", voice='alice')
+        elif "pool" in user_input:
+            response.say("Our outdoor pool is open from 9 AM to 9 PM daily.", voice='alice')
+        elif "pet" in user_input or "dog" in user_input or "cat" in user_input:
+            response.say("We are pet-friendly! There is a 25 dollar pet fee per stay, and we allow up to 3 pets.", voice='alice')
+        elif "parking" in user_input:
+            response.say("Parking is free in our lot for all guests.", voice='alice')
+        elif "beach" in user_input:
+            response.say("We have direct beach access from our property. It's just steps away!", voice='alice')
+        else:
+            response.say(user_input + ". Let me get more details for you.", voice='alice')
+        
+        # Ask if they need anything else
+        response.say("Is there anything else I can help you with?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/handle_guest_input',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        gather.say("Please let me know.", voice='alice')
+        
+        return str(response)
 
 @app.route('/booking_checkin', methods=['POST'])
 def booking_checkin():
@@ -176,15 +237,30 @@ def booking_checkin():
     response = VoiceResponse()
     
     checkin_date = request.form.get('SpeechResult', '')
-    logger.info(f"Check-in date: {checkin_date}")
+    logger.info(f"✏️ Check-in date: {checkin_date}")
+    
+    if not checkin_date:
+        response.say("I didn't catch the date. When would you like to check in?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/booking_checkin',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
     
     response.say(f"Got it, checking in on {checkin_date}. When will you check out?", voice='alice')
     gather = response.gather(
+        num_digits=0,
         action='/booking_checkout',
         method='POST',
-        timeout=10,
-        speech_timeout='auto'
+        timeout=15,
+        speech_timeout='auto',
+        language='en-US'
     )
+    
     return str(response)
 
 @app.route('/booking_checkout', methods=['POST'])
@@ -193,15 +269,30 @@ def booking_checkout():
     response = VoiceResponse()
     
     checkout_date = request.form.get('SpeechResult', '')
-    logger.info(f"Check-out date: {checkout_date}")
+    logger.info(f"✏️ Check-out date: {checkout_date}")
+    
+    if not checkout_date:
+        response.say("When will you check out?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/booking_checkout',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
     
     response.say("Perfect. How many guests will be staying?", voice='alice')
     gather = response.gather(
+        num_digits=0,
         action='/booking_guests',
         method='POST',
-        timeout=10,
-        speech_timeout='auto'
+        timeout=15,
+        speech_timeout='auto',
+        language='en-US'
     )
+    
     return str(response)
 
 @app.route('/booking_guests', methods=['POST'])
@@ -210,10 +301,78 @@ def booking_guests():
     response = VoiceResponse()
     
     num_guests = request.form.get('SpeechResult', '1')
-    logger.info(f"Number of guests: {num_guests}")
+    logger.info(f"✏️ Number of guests: {num_guests}")
     
-    response.say("Thank you. I'm collecting your information. Let me transfer you to our team to complete the booking.", voice='alice')
-    response.dial(Config.MOTEL_PHONE)
+    response.say("Thank you! What is your full name?", voice='alice')
+    gather = response.gather(
+        num_digits=0,
+        action='/booking_name',
+        method='POST',
+        timeout=15,
+        speech_timeout='auto',
+        language='en-US'
+    )
+    
+    return str(response)
+
+@app.route('/booking_name', methods=['POST'])
+def booking_name():
+    """Collect guest name"""
+    response = VoiceResponse()
+    
+    name = request.form.get('SpeechResult', '')
+    logger.info(f"✏️ Guest name: {name}")
+    
+    if not name:
+        response.say("What is your name?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/booking_name',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
+    
+    response.say(f"Thank you {name}. What is your phone number?", voice='alice')
+    gather = response.gather(
+        num_digits=0,
+        action='/booking_phone',
+        method='POST',
+        timeout=15,
+        speech_timeout='auto',
+        language='en-US'
+    )
+    
+    return str(response)
+
+@app.route('/booking_phone', methods=['POST'])
+def booking_phone():
+    """Collect phone number"""
+    response = VoiceResponse()
+    
+    phone = request.form.get('SpeechResult', '')
+    logger.info(f"✏️ Phone: {phone}")
+    
+    if not phone:
+        response.say("What is your phone number?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/booking_phone',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
+    
+    response.say("Perfect! Your reservation is being processed.", voice='alice')
+    response.say("A confirmation has been sent to your email. Check-in is at 3 PM.", voice='alice')
+    response.say("Thank you for choosing Seahorse Inn and Cottages. Goodbye!", voice='alice')
+    response.hangup()
+    
+    logger.info(f"✅ BOOKING COMPLETED")
     
     return str(response)
 
@@ -223,10 +382,24 @@ def extend_stay():
     response = VoiceResponse()
     
     name = request.form.get('SpeechResult', '')
-    logger.info(f"Guest name: {name}")
+    logger.info(f"📞 Extend stay from: {name}")
     
-    response.say(f"Thank you {name}. I'm transferring you to our manager to extend your stay.", voice='alice')
-    response.dial(Config.MOTEL_PHONE)
+    if not name:
+        response.say("What is your name or room number?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/extend_stay',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
+    
+    response.say(f"Thank you {name}. Let me transfer you to our manager to extend your stay.", voice='alice')
+    response.say("Please hold.", voice='alice')
+    response.dial(Config.MOTEL_PHONE, timeout=30)
+    response.hangup()
     
     return str(response)
 
@@ -236,20 +409,33 @@ def cancel_booking():
     response = VoiceResponse()
     
     name = request.form.get('SpeechResult', '')
-    logger.info(f"Cancellation request from: {name}")
+    logger.info(f"❌ Cancellation from: {name}")
     
-    response.say(f"Thank you {name}. I'm transferring you to our manager to process your cancellation.", voice='alice')
-    response.dial(Config.MOTEL_PHONE)
+    if not name:
+        response.say("What is your name?", voice='alice')
+        gather = response.gather(
+            num_digits=0,
+            action='/cancel_booking',
+            method='POST',
+            timeout=15,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        return str(response)
+    
+    response.say(f"Thank you {name}. Let me transfer you to our manager to process your cancellation.", voice='alice')
+    response.dial(Config.MOTEL_PHONE, timeout=30)
+    response.hangup()
     
     return str(response)
 
 @app.route('/status', methods=['GET'])
 def status():
     """Health check"""
-    from flask import jsonify
     return jsonify({
         "status": "online",
-        "motel": "Seahorse Inn and Cottages"
+        "motel": "Seahorse Inn and Cottages",
+        "timestamp": datetime.now().isoformat()
     }), 200
 
 # ============ RUN ============
