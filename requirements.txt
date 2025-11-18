@@ -3,3 +3,4 @@ flask
 vosk
 pysoundfile
 numpy
+python-dotenv
