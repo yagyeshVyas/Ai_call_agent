@@ -115,12 +115,18 @@ def incoming_call():
         num_digits=0,
         action='/handle_guest_input',
         method='POST',
-        timeout=15,
+        timeout=10,
         speech_timeout='auto',
-        max_speech_time=30,
         language='en-US'
     )
     gather.say("Please tell me what you need.", voice='alice')
+    
+    # If no input, repeat
+    response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
+    response.redirect('/incoming_call')
+    
+    logger.info("✅ Greeting sent successfully")
+    return str(response)
     
     # If no input, repeat
     response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
