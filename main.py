@@ -50,42 +50,19 @@ def status():
 # INCOMING CALL HANDLER
 # ============================================================================
 
-@app.route('/incoming_call', methods=['POST'])
-def incoming_call():
-    """Handle incoming call from Twilio"""
-    logger.info("=" * 60)
-    logger.info("📞 INCOMING CALL RECEIVED")
-    logger.info("=" * 60)
+@app.route('/test_twiml', methods=['GET', 'POST'])
+def test_twiml():
+    """Minimal TwiML test - no fancy stuff"""
+    logger.info("🧪 TEST ENDPOINT CALLED")
     
-    try:
-        # Log request details
-        logger.info(f"From: {request.form.get('From', 'Unknown')}")
-        logger.info(f"To: {request.form.get('To', 'Unknown')}")
-        logger.info(f"CallSid: {request.form.get('CallSid', 'Unknown')}")
-        
-        # Create TwiML response
-        response = VoiceResponse()
-        
-        # Add greeting
-        greeting_text = "Hello! Welcome to Seahorse Inn and Cottages. You can book a room, extend your stay, or ask about our amenities. What can I help you with today?"
-        logger.info(f"Playing greeting: {greeting_text[:50]}...")
-        response.say(greeting_text, voice='alice')
-        
-        # Add gather for speech input
-        logger.info("Adding gather for speech input...")
-        gather = response.gather(
-            num_digits=0,
-            action='/handle_guest_input',
-            method='POST',
-            timeout=10,
-            speech_timeout='auto',
-            language='en-US'
-        )
-        gather.say("Please tell me what you need.", voice='alice')
-        
-        # Fallback if no input
-        response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
-        response.redirect('/incoming_call')
+    response_str = '''<?xml version="1.0" encoding="UTF-8"?>
+<Response>
+    <Say voice="alice">Hello from Seahorse Inn. This is a test.</Say>
+    <Hangup/>
+</Response>'''
+    
+    logger.info(f"Returning: {response_str}")
+    return response_str, 200, {'Content-Type': 'text/xml'}
         
         # Convert to string
         twiml_str = str(response)
