@@ -1,6 +1,7 @@
 import os
 import json
 import threading
+import traceback  # ADD THIS
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify
@@ -104,22 +105,42 @@ agent = SeahorseAIAgent()
 def incoming_call():
     """Handle incoming call from Twilio"""
     logger.info("📞 Incoming call received")
+    logger.info(f"Request Form: {request.form}")
     
-    response = VoiceResponse()
-    
-    # Play greeting
-    response.say(agent.get_greeting(), voice='alice')
-    
-    # Gather guest input (Twilio Speech Recognition)
-    gather = response.gather(
-        num_digits=0,
-        action='/handle_guest_input',
-        method='POST',
-        timeout=10,
-        speech_timeout='auto',
-        language='en-US'
-    )
-    gather.say("Please tell me what you need.", voice='alice')
+    try:
+        response = VoiceResponse()
+        
+        # Play greeting
+        response.say("Hello! Welcome to Seahorse Inn and Cottages. You can book a room, extend your stay, or ask about our amenities. What can I help you with today?", voice='alice')
+        
+        # Gather guest input
+        gather = response.gather(
+            num_digits=0,
+            action='/handle_guest_input',
+            method='POST',
+            timeout=10,
+            speech_timeout='auto',
+            language='en-US'
+        )
+        gather.say("Please tell me what you need.", voice='alice')
+        
+        # If no input, repeat
+        response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
+        response.redirect('/incoming_call')
+        
+        logger.info("✅ TwiML Response created successfully")
+        twiml_str = str(response)
+        logger.info(f"TwiML: {twiml_str[:200]}...")  # Log first 200 chars
+        
+        return twiml_str, 200, {'Content-Type': 'text/xml'}
+        
+    except Exception as e:
+        logger.error(f"❌ ERROR in incoming_call: {str(e)}")
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        
+        response = VoiceResponse()
+        response.say("Sorry, there was an error. Please try again.")
+        return str(response), 200, {'Content-Type': 'text/xml'}
     
     # If no input, repeat
     response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
