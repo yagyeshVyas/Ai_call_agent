@@ -1,0 +1,5 @@
+twilio
+flask
+vosk
+pysoundfile
+numpy

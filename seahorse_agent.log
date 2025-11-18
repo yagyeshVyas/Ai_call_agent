@@ -1,0 +1,20 @@
+2025-11-17 16:12:35,868 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.45.136:5000
+2025-11-17 16:12:35,868 - INFO - [33mPress CTRL+C to quit[0m
+2025-11-17 16:12:52,861 - INFO - 127.0.0.1 - - [17/Nov/2025 16:12:52] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:12:53,936 - INFO - 127.0.0.1 - - [17/Nov/2025 16:12:53] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
+2025-11-17 16:13:00,854 - INFO - 127.0.0.1 - - [17/Nov/2025 16:13:00] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:13:02,267 - INFO - 127.0.0.1 - - [17/Nov/2025 16:13:02] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:13:46,199 - INFO - 127.0.0.1 - - [17/Nov/2025 16:13:46] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:17:26,879 - INFO - 127.0.0.1 - - [17/Nov/2025 16:17:26] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:17:27,049 - INFO - 127.0.0.1 - - [17/Nov/2025 16:17:27] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:33:15,563 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:5000
+ * Running on http://192.168.45.136:5000
+2025-11-17 16:33:15,570 - INFO - [33mPress CTRL+C to quit[0m
+2025-11-17 16:34:10,761 - INFO - 127.0.0.1 - - [17/Nov/2025 16:34:10] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:34:12,838 - INFO - 192.168.45.136 - - [17/Nov/2025 16:34:12] "[33mGET / HTTP/1.1[0m" 404 -
+2025-11-17 16:34:14,142 - INFO - 192.168.45.136 - - [17/Nov/2025 16:34:14] "[33mGET /favicon.ico HTTP/1.1[0m" 404 -
