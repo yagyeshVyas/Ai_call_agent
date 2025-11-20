@@ -4,14 +4,10 @@ import traceback
 from dotenv import load_dotenv
 from flask import Flask, request
 from twilio.twiml.voice_response import VoiceResponse
+from conversational_ai import ConversationalAI
 
 # Load environment variables
 load_dotenv()
-
-# ============ CONFIGURATION ============
-class Config:
-    MOTEL_NAME = os.getenv("MOTEL_NAME", "Seahorse Inn and Cottages")
-    GREETING_TEXT = os.getenv("GREETING_TEXT", "Hello! Welcome to Seahorse Inn and Cottages. How can I help you today?")
 
 # ============ LOGGING SETUP ============
 logging.basicConfig(
@@ -20,7 +16,15 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# ============ CONFIGURATION ============
+class Config:
+    MOTEL_NAME = os.getenv("MOTEL_NAME", "Seahorse Inn and Cottages")
+    GREETING_TEXT = os.getenv("GREETING_TEXT", "Hello! Welcome to Seahorse Inn and Cottages. I'm your AI assistant. How can I help you today?")
+
 app = Flask(__name__)
+
+# Initialize Conversational AI
+ai = ConversationalAI()
 
 # ============ ROUTES ============
 
@@ -41,78 +45,99 @@ def incoming_call():
     logger.info(f"Headers: {dict(request.headers)}")
     logger.info(f"Form Data: {dict(request.form)}")
     
+    # Get unique call identifier
+    call_sid = request.form.get('CallSid', 'unknown')
+    
     response = VoiceResponse()
     
     try:
-        # 1. Basic Greeting
+        # Greeting
         response.say(Config.GREETING_TEXT, voice='alice')
         
-        # 2. Gather Input with LONGER timeouts
+        # Start conversational gathering
         gather = response.gather(
-            input='speech dtmf',
-            timeout=10,  # Increased from 5 to 10 seconds
-            speech_timeout='auto',  # Auto-detect when user stops speaking
-            num_digits=1,
-            action='/handle_input',
+            input='speech',
+            timeout=10,
+            speech_timeout='auto',
+            action='/handle_conversation',
             method='POST'
         )
-        gather.say("You can tell me what you need, or press 1 for reservations, 2 for questions.", voice='alice')
+        gather.say("I'm listening...", voice='alice')
         
-        # 3. Fallback if no input - redirect instead of hangup
+        # Fallback if no input
         response.say("I didn't hear anything. Let me ask again.", voice='alice')
         response.redirect('/incoming_call', method='POST')
         
-        logger.info("✅ TwiML generated successfully")
+        logger.info("✅ Initial TwiML generated")
         
     except Exception as e:
         logger.error(f"❌ CRITICAL ERROR: {str(e)}")
         logger.error(traceback.format_exc())
         
-        # Emergency Fallback
         response = VoiceResponse()
         response.say("We are currently experiencing technical difficulties. Please try again later.", voice='alice')
         
     return str(response), 200, {'Content-Type': 'text/xml'}
 
-@app.route('/handle_input', methods=['POST'])
-def handle_input():
-    """Handle the user's response"""
-    logger.info("📝 Handling User Input")
+@app.route('/handle_conversation', methods=['POST'])
+def handle_conversation():
+    """Handle conversational turns with AI"""
+    logger.info("💬 Handling Conversation Turn")
     logger.info(f"Form Data: {dict(request.form)}")
     
     response = VoiceResponse()
     
     try:
-        speech_result = request.form.get('SpeechResult')
-        digits = request.form.get('Digits')
+        # Get call identifier for context tracking
+        call_sid = request.form.get('CallSid', 'unknown')
         
-        if speech_result:
-            msg = f"You said: {speech_result}. Thank you, I will help you with that."
-            logger.info(f"Speech: {speech_result}")
-        elif digits:
-            if digits == '1':
-                msg = "You pressed 1 for reservations. Let me connect you to our booking system."
-            elif digits == '2':
-                msg = "You pressed 2 for questions. An agent will assist you shortly."
-            else:
-                msg = f"You pressed: {digits}."
-            logger.info(f"Digits: {digits}")
-        else:
-            msg = "I didn't get that. Let me ask again."
-            response.say(msg, voice='alice')
+        # Get what user said
+        speech_result = request.form.get('SpeechResult', '')
+        
+        if not speech_result:
+            # No speech detected
+            response.say("I didn't catch that. Could you say that again?", voice='alice')
             response.redirect('/incoming_call', method='POST')
             return str(response), 200, {'Content-Type': 'text/xml'}
+        
+       # Get AI response
+        ai_result = ai.chat(call_sid, speech_result)
+        
+        # Speak AI's response
+        response.say(ai_result['response'], voice='alice')
+        
+        # Check if call should end
+        if ai_result['should_end_call']:
+            logger.info(f"👋 Call ending gracefully for {call_sid}")
+            response.say("Goodbye!", voice='alice')
+            response.hangup()
             
-        response.say(msg, voice='alice')
-        response.say("Thank you for calling. Goodbye.", voice='alice')
+            # Clean up conversation memory
+            ai.clear_conversation(call_sid)
+        else:
+            # Continue conversation
+            gather = response.gather(
+                input='speech',
+                timeout=10,
+                speech_timeout='auto',
+                action='/handle_conversation',
+                method='POST'
+            )
+            gather.pause(length=1)  # Brief pause for natural feel
+            
+            # Fallback if they don't say anything
+            response.say("Are you still there? If you need anything else, just let me know.", voice='alice')
+            response.redirect('/handle_conversation', method='POST')
         
     except Exception as e:
-        logger.error(f"❌ Error in handle_input: {e}")
-        response.say("Sorry, I had trouble understanding. Please try again.", voice='alice')
+        logger.error(f"❌ Error in conversation: {e}")
+        logger.error(traceback.format_exc())
+        response.say("Sorry, I had trouble understanding. Let me start over.", voice='alice')
         response.redirect('/incoming_call', method='POST')
         
     return str(response), 200, {'Content-Type': 'text/xml'}
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
+    logger.info(f"🚀 Starting Seahorse AI Agent on port {port}")
     app.run(host='0.0.0.0', port=port)
