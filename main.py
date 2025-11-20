@@ -1,60 +1,35 @@
 import os
-import json
-import threading
-import traceback
 import logging
-from datetime import datetime, timedelta
+import traceback
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
-from twilio.rest import Client
+from flask import Flask, request
 from twilio.twiml.voice_response import VoiceResponse
 
-# Setup logging
+# Load environment variables
+load_dotenv()
+
+# ============ CONFIGURATION ============
+class Config:
+    MOTEL_NAME = os.getenv("MOTEL_NAME", "Seahorse Inn and Cottages")
+    GREETING_TEXT = os.getenv("GREETING_TEXT", "Hello! Welcome to Seahorse Inn and Cottages. How can I help you today?")
+
+# ============ LOGGING SETUP ============
+# Configure logging to print to stdout (standard output), which Render captures.
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
 
-# Load environment variables
-load_dotenv()
-
-# Initialize Flask
 app = Flask(__name__)
 
-class Config:
-    """Configuration"""
-    TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
-    TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
-    TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
+# ============ ROUTES ============
 
-# Initialize Twilio
-twilio_client = Client(Config.TWILIO_ACCOUNT_SID, Config.TWILIO_AUTH_TOKEN)
-
-logger.info("🐴 Seahorse AI Agent Initialized (Twilio Voice)")
-
-@app.route('/status', methods=['GET'])
-def status():
-    """Health check endpoint"""
-    return jsonify({
-        "motel": "Seahorse Inn and Cottages",
-        "status": "online",
-        "timestamp": datetime.utcnow().isoformat()
-    }), 200
-
-@app.route('/test_twiml', methods=['GET', 'POST'])
-def test_twiml():
-    """Minimal TwiML test - no fancy stuff"""
-    logger.info("🧪 TEST ENDPOINT CALLED")
-    
-    response_str = '''<?xml version="1.0" encoding="UTF-8"?>
-<Response>
-    <Say voice="alice">Hello from Seahorse Inn. This is a test.</Say>
-    <Hangup/>
-</Response>'''
-    
-    logger.info(f"Returning: {response_str}")
-    return response_str, 200, {'Content-Type': 'text/xml'}
+@app.route('/', methods=['GET'])
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Simple health check to verify the app is running on Render"""
+    return "Seahorse AI Agent is Online 🐴", 200
 
 @app.route('/incoming_call', methods=['POST'])
 def incoming_call():
@@ -63,88 +38,71 @@ def incoming_call():
     logger.info("📞 INCOMING CALL RECEIVED")
     logger.info("=" * 60)
     
-    try:
-        # Log request details
-        logger.info(f"From: {request.form.get('From', 'Unknown')}")
-        logger.info(f"To: {request.form.get('To', 'Unknown')}")
-        logger.info(f"CallSid: {request.form.get('CallSid', 'Unknown')}")
-        
-        # Create TwiML response
-        response = VoiceResponse()
-        
-        # Add greeting
-        greeting_text = "Hello! Welcome to Seahorse Inn and Cottages. You can book a room, extend your stay, or ask about our amenities. What can I help you with today?"
-        logger.info(f"Playing greeting: {greeting_text[:50]}...")
-        response.say(greeting_text, voice='alice')
-        
-        # Add gather for speech input
-        logger.info("Adding gather for speech input...")
-        gather = response.gather(
-            num_digits=0,
-            action='/handle_guest_input',
-            method='POST',
-            timeout=10,
-            speech_timeout='auto',
-            language='en-US'
-        )
-        gather.say("Please tell me what you need.", voice='alice')
-        
-        # Fallback if no input
-        response.say("Sorry, I didn't catch that. Let me try again.", voice='alice')
-        response.redirect('/incoming_call')
-        
-        # Convert to string
-        twiml_str = str(response)
-        logger.info("✅ TwiML response created successfully")
-        logger.info(f"TwiML Preview: {twiml_str[:150]}...")
-        
-        # Return with correct content type
-        return twiml_str, 200, {'Content-Type': 'text/xml'}
-        
-    except Exception as e:
-        logger.error("=" * 60)
-        logger.error(f"❌ ERROR IN INCOMING_CALL: {str(e)}")
-        logger.error("=" * 60)
-        logger.error(traceback.format_exc())
-        
-        # Return error response (still valid TwiML)
-        response = VoiceResponse()
-        response.say("Sorry, there was a system error. Please try again later.", voice='alice')
-        
-        return str(response), 200, {'Content-Type': 'text/xml'}
-
-@app.route('/handle_guest_input', methods=['POST'])
-def handle_guest_input():
-    """Handle guest input from gather"""
-    logger.info("=" * 60)
-    logger.info("📝 HANDLING GUEST INPUT")
-    logger.info("=" * 60)
+    # Log all request data for debugging
+    logger.info(f"Headers: {dict(request.headers)}")
+    logger.info(f"Form Data: {dict(request.form)}")
+    
+    response = VoiceResponse()
     
     try:
-        speech_result = request.form.get('SpeechResult', 'No input')
-        logger.info(f"Guest said: {speech_result}")
+        # 1. Basic Greeting
+        response.say(Config.GREETING_TEXT, voice='alice')
         
-        response = VoiceResponse()
+        # 2. Gather Input (Simple test first)
+        # We ask the user to say something or press a key
+        gather = response.gather(
+            input='speech dtmf',
+            timeout=5,
+            num_digits=1,
+            action='/handle_input'
+        )
+        gather.say("Please say something or press 1.", voice='alice')
         
-        # Simple response
-        response.say(f"You said: {speech_result}", voice='alice')
-        response.say("Thank you for calling. Goodbye.", voice='alice')
-        response.hangup()
+        # 3. Fallback if no input
+        response.say("I didn't hear anything. Goodbye.", voice='alice')
         
-        logger.info("✅ Response sent")
-        return str(response), 200, {'Content-Type': 'text/xml'}
+        logger.info("✅ TwiML generated successfully")
         
     except Exception as e:
-        logger.error(f"❌ ERROR: {str(e)}")
+        logger.error(f"❌ CRITICAL ERROR: {str(e)}")
         logger.error(traceback.format_exc())
         
+        # Emergency Fallback: Always return valid XML so the call doesn't drop
         response = VoiceResponse()
-        response.say("Error processing your request.", voice='alice')
-        response.hangup()
+        response.say("We are currently experiencing technical difficulties. Please try again later.", voice='alice')
         
-        return str(response), 200, {'Content-Type': 'text/xml'}
+    return str(response), 200, {'Content-Type': 'text/xml'}
+
+@app.route('/handle_input', methods=['POST'])
+def handle_input():
+    """Handle the user's response"""
+    logger.info("📝 Handling User Input")
+    logger.info(f"Form Data: {dict(request.form)}")
+    
+    response = VoiceResponse()
+    
+    try:
+        speech_result = request.form.get('SpeechResult')
+        digits = request.form.get('Digits')
+        
+        if speech_result:
+            msg = f"You said: {speech_result}"
+        elif digits:
+            msg = f"You pressed: {digits}"
+        else:
+            msg = "I didn't get that."
+            
+        logger.info(f"Response message: {msg}")
+        response.say(msg, voice='alice')
+        response.say("Thank you for calling.", voice='alice')
+        
+    except Exception as e:
+        logger.error(f"❌ Error in handle_input: {e}")
+        response.say("Sorry, I had trouble understanding.", voice='alice')
+        
+    return str(response), 200, {'Content-Type': 'text/xml'}
 
 if __name__ == "__main__":
+    # This is for local testing. On Render, Gunicorn will use the 'app' object directly.
     port = int(os.environ.get("PORT", 10000))
-    logger.info(f"🚀 Starting Flask app on port {port}")
-    app.run(host='0.0.0.0', port=port, debug=False, use_reloader=False)
+    app.run(host='0.0.0.0', port=port)
