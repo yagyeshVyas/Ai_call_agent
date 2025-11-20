@@ -18,7 +18,7 @@ class ConversationalAI:
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         
         # Use a good conversational model from OpenRouter
-        self.model = os.getenv("AI_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
+        self.model = os.getenv("AI_MODEL", "tngtech/deepseek-r1t-chimera:free")
         
         # Load motel knowledge from environment
         self.motel_info = self._load_motel_info()
@@ -34,7 +34,7 @@ class ConversationalAI:
             "name": os.getenv("MOTEL_NAME", "Seahorse Inn and Cottages"),
             "phone": os.getenv("MOTEL_PHONE", "252-441-5242"),
             "address": os.getenv("MOTEL_ADDRESS", "7218 S Virginia Dare Trail, Nags Head, NC 27959"),
-            "wifi_password": os.getenv("WIFI_PASSWORD", "SeahorseGuest2024"),
+            "wifi_password": os.getenv("WIFI_PASSWORD", "2524415242"),
             "check_in": os.getenv("CHECK_IN_TIME", "3:00 PM"),
             "check_out": os.getenv("CHECK_OUT_TIME", "11:00 AM"),
             "amenities": os.getenv("AMENITIES", "Free WiFi, Pool, Beach Access, Pet-Friendly, Free Parking").split(","),
