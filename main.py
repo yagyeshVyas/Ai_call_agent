@@ -48,27 +48,6 @@ def incoming_call():
     # Get unique call identifier
     call_sid = request.form.get('CallSid', 'unknown')
     
-    response = VoiceResponse()
-    
-    try:
-        # Greeting
-        response.say(Config.GREETING_TEXT, voice='alice')
-        
-        # Start conversational gathering
-        gather = response.gather(
-            input='speech',
-            timeout=10,
-            speech_timeout='auto',
-            action='/handle_conversation',
-            method='POST'
-        )
-        gather.say("I'm listening...", voice='alice')
-        
-        # Fallback if no input
-        response.say("I didn't hear anything. Let me ask again.", voice='alice')
-        response.redirect('/incoming_call', method='POST')
-        
-        logger.info("✅ Initial TwiML generated")
         
     except Exception as e:
         logger.error(f"❌ CRITICAL ERROR: {str(e)}")
