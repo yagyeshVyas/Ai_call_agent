@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.env
+gv_user_data/
+tts_audio/
+model/
+ngrok-v3-stable-windows-amd64/
+*.zip
+*.exe
