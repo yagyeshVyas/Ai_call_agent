@@ -28,40 +28,6 @@ ai = ConversationalAI()
 
 # ============ ROUTES ============
 
-@app.route('/', methods=['GET'])
-@app.route('/health', methods=['GET'])
-def health_check():
-    """Simple health check to verify the app is running on Render"""
-    return "Seahorse AI Agent is Online 🐴", 200
-
-@app.route('/incoming_call', methods=['POST'])
-def incoming_call():
-    """Handle incoming call from Twilio"""
-    logger.info("=" * 60)
-    logger.info("📞 INCOMING CALL RECEIVED")
-    logger.info("=" * 60)
-    
-    # Log all request data for debugging
-    logger.info(f"Headers: {dict(request.headers)}")
-    logger.info(f"Form Data: {dict(request.form)}")
-    
-    # Get unique call identifier
-    call_sid = request.form.get('CallSid', 'unknown')
-    
-        
-    except Exception as e:
-        logger.error(f"❌ CRITICAL ERROR: {str(e)}")
-        logger.error(traceback.format_exc())
-        
-        response = VoiceResponse()
-        response.say("We are currently experiencing technical difficulties. Please try again later.", voice='alice')
-        
-    return str(response), 200, {'Content-Type': 'text/xml'}
-
-@app.route('/handle_conversation', methods=['POST'])
-def handle_conversation():
-    """Handle conversational turns with AI"""
-    logger.info("💬 Handling Conversation Turn")
     logger.info(f"Form Data: {dict(request.form)}")
     
     response = VoiceResponse()
