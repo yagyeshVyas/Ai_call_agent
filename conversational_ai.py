@@ -1,6 +1,6 @@
 import os
 import logging
-from openai import OpenAI
+import requests
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -13,14 +13,11 @@ class ConversationalAI:
     """
     
     def __init__(self):
-        # OpenRouter is OpenAI-compatible, just different base URL
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=os.getenv("OPENROUTER_API_KEY", os.getenv("OPENAI_API_KEY"))
-        )
+        # Use requests directly to avoid OpenAI SDK dependency issues
+        self.api_key = os.getenv("OPENROUTER_API_KEY", os.getenv("OPENAI_API_KEY"))
+        self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         
         # Use a good conversational model from OpenRouter
-        # Options: meta-llama/llama-3.1-8b-instruct (cheap), google/gemini-pro (good), gpt-3.5-turbo
         self.model = os.getenv("AI_MODEL", "meta-llama/llama-3.1-8b-instruct:free")
         
         # Load motel knowledge from environment
@@ -119,15 +116,29 @@ class ConversationalAI:
         })
         
         try:
-            # Call OpenRouter API
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=self.conversations[call_id],
-                max_tokens=150,  # Keep responses short for phone calls
-                temperature=0.7  # Balanced creativity
-            )
+            # Call OpenRouter API with requests
+            headers = {
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json"
+            }
             
-            ai_response = response.choices[0].message.content.strip()
+            data = {
+                "model": self.model,
+                "messages": self.conversations[call_id],
+                "max_tokens": 150,
+                "temperature": 0.7
+            }
+            
+            response = requests.post(
+                self.base_url,
+                headers=headers,
+                json=data,
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            result = response.json()
+            ai_response = result['choices'][0]['message']['content'].strip()
             
             # Add AI response to history
             self.conversations[call_id].append({
