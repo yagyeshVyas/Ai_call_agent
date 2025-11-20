@@ -1,7 +1,4 @@
 Flask==3.1.2
 twilio==9.8.6
 python-dotenv==1.2.1
-<<<<<<< HEAD
 gunicorn==23.0.0
-=======
->>>>>>> 4f1e82443d17321c6f07aedce4afbe5360f6ab8f
