@@ -18,7 +18,8 @@ class ConversationalAI:
         self.base_url = "https://openrouter.ai/api/v1/chat/completions"
         
         # Use a good conversational model from OpenRouter
-        self.model = os.getenv("AI_MODEL", "tngtech/deepseek-r1t-chimera:free")
+        # Using google/gemini-flash-1.5-8b:free - reliable and fast
+        self.model = os.getenv("AI_MODEL", "google/gemini-flash-1.5-8b:free")
         
         # Load motel knowledge from environment
         self.motel_info = self._load_motel_info()
